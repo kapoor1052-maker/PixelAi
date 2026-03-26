@@ -1378,40 +1378,65 @@
             }
         }
 
-        function pollJob() {
-            if (pollTimer) {
+      function pollJob() {
+    if (pollTimer) clearInterval(pollTimer);
+
+    pollTimer = setInterval(async () => {
+        if (!currentJobId) return;
+
+        try {
+            const res = await fetch(`/api/job/${currentJobId}`);
+            const data = await res.json();
+
+            console.log("Polling:", data);
+
+            // ✅ Progress update
+            setProgress(data.progress, data.status);
+
+            // ✅ DONE CASE
+            if (data.status === "done") {
                 clearInterval(pollTimer);
+
+                // 🔥 FIX: new image load with cache break
+                const imageUrl = data.image_url + "?t=" + Date.now();
+
+                byId("enhancedPreview").src = imageUrl;
+
+                // metadata update
+                byId("enhSize").textContent = data.enhanced_size
+                    ? `${data.enhanced_size[0]} x ${data.enhanced_size[1]}`
+                    : "-";
+
+                byId("origSize").textContent = data.original_size
+                    ? `${data.original_size[0]} x ${data.original_size[1]}`
+                    : "-";
+
+                byId("scaleResult").textContent = data.scale + "x";
+
+                byId("resultPrompt").textContent = data.prompt || "No prompt used";
+                byId("resultPreset").textContent = data.style_preset || "Auto";
+
+                // metrics (optional)
+                if (data.metrics && Object.keys(data.metrics).length > 0) {
+                    byId("metricsChip").style.display = "block";
+                    byId("metricsVal").textContent = JSON.stringify(data.metrics);
+                }
+
+                showView("viewResult");
             }
 
-            pollTimer = setInterval(async() => {
-                try {
-                    const response = await fetch(`/api/job/${currentJobId}`);
-                    const job = await response.json();
+            // ❌ ERROR CASE
+            if (data.status === "error") {
+                clearInterval(pollTimer);
+                alert("Error: " + data.error);
+                showView("viewUpload");
+            }
 
-                    if (!response.ok) {
-                        throw new Error(job.detail || "Failed to fetch job");
-                    }
-
-                    const safeProgress = Math.max(job.progress || 0, 10);
-                    setProgress(safeProgress, getStatusMessage(safeProgress, job));
-
-                    if (job.status === "done") {
-                        clearInterval(pollTimer);
-                        pollTimer = null;
-                        setProgress(100, "Done");
-                        await showResult(job, true);
-                    } else if (job.status === "error") {
-                        clearInterval(pollTimer);
-                        pollTimer = null;
-                        alert("Enhancement failed: " + (job.error || "Unknown error"));
-                        showView("viewUpload");
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-            }, 700);
+        } catch (err) {
+            console.error("Polling error:", err);
         }
-
+    }, 1500);
+}
         function pollBatch() {
             if (pollTimer) {
                 clearInterval(pollTimer);
