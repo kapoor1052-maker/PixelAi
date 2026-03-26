@@ -843,6 +843,7 @@ async def enhance_batch(
 async def api_get_job(job_id: str):
     delete_old_data()
     job = get_job(job_id)
+
     if not job:
         raise HTTPException(404, "Job not found")
 
@@ -858,10 +859,12 @@ async def api_get_job(job_id: str):
         "original_size": safe_json(job.get("original_size")),
         "enhanced_size": safe_json(job.get("enhanced_size")),
         "output_name": job.get("output_name"),
-        "error": job.get("error"),
         "metrics": safe_json(job.get("metrics"), {}),
-    }
+        "error": job.get("error"),
 
+        # ✅ 🔥 IMPORTANT FIX
+        "image_url": f"/api/download/{job['id']}" if job["status"] == "done" else None
+    }
 
 @app.get("/api/batch/{batch_id}")
 async def api_get_batch(batch_id: str):
